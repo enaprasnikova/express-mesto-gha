@@ -24,7 +24,7 @@ const createResponse = (card) => {
 };
 
 const processError = (res, err) => {
-  if (err.name === 'ValidationError') {
+  if (err.name === 'ValidationError' || err.name === 'CastError') {
     return res.status(STATUS_VALIDATION_ERROR).send({ message: 'Ошибка валидации' });
   }
 

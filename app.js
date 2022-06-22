@@ -31,4 +31,8 @@ app.use('/users', userRoutes);
 
 app.use('/cards', cardRoutes);
 
+app.use((req, res) => {
+  res.status(404).send({ message: 'Указан неправильный путь' });
+});
+
 app.listen(PORT);

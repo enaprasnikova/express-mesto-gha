@@ -11,7 +11,7 @@ const STATUS_SUCCESS = 200;
 const STATUS_SUCCESS_CREATED = 201;
 
 const processError = (res, err) => {
-  if (err.name === 'ValidationError') {
+  if (err.name === 'ValidationError' || err.name === 'CastError') {
     return res.status(STATUS_VALIDATION_ERROR).send({ message: 'Ошибка валидации' });
   }
 
