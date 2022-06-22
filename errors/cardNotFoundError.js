@@ -1,7 +1,7 @@
 class CardNotFoundError extends Error {
   constructor(message) {
     super(message);
-    this.name = "CardNotFoundError";
+    this.name = 'CardNotFoundError';
     this.statusCode = 404;
   }
 }
