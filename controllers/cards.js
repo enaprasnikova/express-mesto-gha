@@ -1,22 +1,27 @@
 const Cards = require('../models/card');
 
-const STATUS_VALIDATION_ERROR = 400;
+const { createResponseUser } = require('./users');
 
-const STATUS_INTERNAL_ERROR = 500;
-
-const STATUS_SUCCESS = 200;
-
-const STATUS_SUCCESS_CREATED = 201;
+const {
+  STATUS_VALIDATION_ERROR,
+  STATUS_INTERNAL_ERROR,
+  STATUS_SUCCESS,
+  STATUS_SUCCESS_CREATED,
+} = require('../utils/statusCodes');
 
 const CardNotFoundError = require('../errors/cardNotFoundError');
 
 const createResponse = (card) => {
+  card.likes.forEach((like, index) => {
+    card.likes[index] = createResponseUser(like);
+  });
+
   const formattedCard = {
     createdAt: card.createdAt,
     likes: card.likes,
     link: card.link,
     name: card.name,
-    owner: card.owner,
+    owner: createResponseUser(card.owner),
     _id: card._id,
   };
 
@@ -37,6 +42,7 @@ const processError = (res, err) => {
 
 module.exports.getCards = (req, res) => {
   Cards.find({})
+    .populate(['owner', 'likes'])
     .then((cards) => {
       cards.forEach((card, index) => {
         cards[index] = createResponse(card);
@@ -51,12 +57,18 @@ module.exports.createCard = (req, res) => {
   const owner = req.user._id;
 
   Cards.create({ name, link, owner })
-    .then((card) => res.status(STATUS_SUCCESS_CREATED).send(createResponse(card)))
+    .then((card) => {
+      card.populate('owner')
+        .then((populatedCard) => {
+          res.status(STATUS_SUCCESS_CREATED).send(createResponse(populatedCard));
+        });
+    })
     .catch((err) => processError(res, err));
 };
 
 module.exports.deleteCard = (req, res) => {
   Cards.findByIdAndRemove(req.params.cardId)
+    .populate(['owner', 'likes'])
     .then((card) => {
       if (!card) {
         throw new CardNotFoundError('Карточка не найдена');
@@ -72,6 +84,7 @@ module.exports.likeCard = (req, res) => {
     { $addToSet: { likes: req.user._id } }, // добавить _id в массив, если его там нет
     { new: true },
   )
+    .populate(['owner', 'likes'])
     .then((card) => {
       if (!card) {
         throw new CardNotFoundError('Карточка не найдена');
@@ -88,6 +101,7 @@ module.exports.dislikeCard = (req, res) => {
     { $pull: { likes: req.user._id } }, // убрать _id из массива
     { new: true },
   )
+    .populate(['owner', 'likes'])
     .then((card) => {
       if (!card) {
         throw new CardNotFoundError('Карточка не найдена');

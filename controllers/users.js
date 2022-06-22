@@ -2,13 +2,12 @@ const Users = require('../models/user');
 
 const UserNotFoundError = require('../errors/userNotFoundError');
 
-const STATUS_VALIDATION_ERROR = 400;
-
-const STATUS_INTERNAL_ERROR = 500;
-
-const STATUS_SUCCESS = 200;
-
-const STATUS_SUCCESS_CREATED = 201;
+const {
+  STATUS_VALIDATION_ERROR,
+  STATUS_INTERNAL_ERROR,
+  STATUS_SUCCESS,
+  STATUS_SUCCESS_CREATED,
+} = require('../utils/statusCodes');
 
 const processError = (res, err) => {
   if (err.name === 'ValidationError' || err.name === 'CastError') {
@@ -76,10 +75,14 @@ module.exports.updateUser = (req, res) => {
     {
       new: true, // обработчик then получит на вход обновлённую запись
       runValidators: true, // данные будут валидированы перед изменением
-      upsert: true, // если пользователь не найден, он будет создан
     },
   )
-    .then((user) => res.send(createResponse(user)))
+    .then((user) => {
+      if (!user) {
+        throw new UserNotFoundError('Пользователь не найден');
+      }
+      res.send(createResponse(user));
+    })
     .catch((err) => processError(res, err));
 };
 
@@ -93,9 +96,15 @@ module.exports.updateUserAvatar = (req, res) => {
     {
       new: true, // обработчик then получит на вход обновлённую запись
       runValidators: true, // данные будут валидированы перед изменением
-      upsert: true, // если пользователь не найден, он будет создан
     },
   )
-    .then((user) => res.send(createResponse(user)))
+    .then((user) => {
+      if (!user) {
+        throw new UserNotFoundError('Пользователь не найден');
+      }
+      res.send(createResponse(user));
+    })
     .catch((err) => processError(res, err));
 };
+
+module.exports.createResponseUser = createResponse;
