@@ -2,6 +2,8 @@ const router = require('express').Router();
 
 const { celebrate, Joi } = require('celebrate');
 
+const { urlPattern } = require('../utils/utils');
+
 const {
   getUser,
   getUsers,
@@ -29,7 +31,7 @@ router.get('/:userId', celebrate({
 
 router.patch('/me/avatar', celebrate({
   body: Joi.object().keys({
-    avatar: Joi.string().required().uri(),
+    avatar: Joi.string().required().pattern(urlPattern),
   }),
 }), updateUserAvatar);
 
