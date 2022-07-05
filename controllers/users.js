@@ -1,25 +1,17 @@
+const bcrypt = require('bcryptjs');
+
+const jwt = require('jsonwebtoken');
+
 const Users = require('../models/user');
 
-const UserNotFoundError = require('../errors/userNotFoundError');
+const SALT_ROUNDS = 10;
+
+const SECRET_KEY = 'very-secret';
 
 const {
-  STATUS_VALIDATION_ERROR,
-  STATUS_INTERNAL_ERROR,
   STATUS_SUCCESS,
   STATUS_SUCCESS_CREATED,
 } = require('../utils/statusCodes');
-
-const processError = (res, err) => {
-  if (err.name === 'ValidationError' || err.name === 'CastError') {
-    return res.status(STATUS_VALIDATION_ERROR).send({ message: 'Ошибка валидации' });
-  }
-
-  if (err.name === 'UserNotFoundError') {
-    return res.status(err.statusCode).send({ message: err.message });
-  }
-
-  return res.status(STATUS_INTERNAL_ERROR).send({ message: 'Внутренняя ошибка сервера' });
-};
 
 const createResponse = (user) => {
   const formattedUser = {
@@ -31,14 +23,85 @@ const createResponse = (user) => {
   return formattedUser;
 };
 
-module.exports.createUser = (req, res) => {
-  const { name, about, avatar } = req.body;
+const throwError = (statusCode, message) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  throw error;
+};
 
-  Users.create({ name, about, avatar })
-    .then((user) => res.status(STATUS_SUCCESS_CREATED).send(createResponse(user)))
+module.exports.login = (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    throwError(400, 'Не передан емейл или пароль');
+  }
+
+  Users.findOne({ email }).select('+password')
+    .then((foundUser) => {
+      if (!foundUser) {
+        throwError(403, 'Неправильный емейл или пароль');
+      }
+
+      return Promise.all([
+        foundUser,
+        bcrypt.compare(password, foundUser.password),
+      ]);
+    })
+    .then(([user, isPasswordCorrect]) => {
+      if (!isPasswordCorrect) {
+        throwError(403, 'Неправильный емейл или пароль');
+      }
+
+      return jwt.sign(
+        { _id: user._id },
+        SECRET_KEY,
+        { expiresIn: '7d' },
+      );
+    })
+    .then((token) => {
+      res.send({ token });
+    })
     .catch((err) => {
-      processError(res, err);
+      res
+        .status(401)
+        .send({ message: err.message });
     });
+};
+
+module.exports.getUserInfo = (req, res, next) => {
+  Users.findById(req.user._id)
+    .then((user) => {
+      if (!user) {
+        throwError(404, 'Пользователь не найден');
+      }
+      res.send(createResponse(user));
+    })
+    .catch(next);
+};
+
+module.exports.createUser = (req, res, next) => {
+  const {
+    name,
+    about,
+    avatar,
+    email,
+    password,
+  } = req.body;
+
+  if (!email || !password) {
+    throwError(400, 'Не передан емейл или пароль');
+  }
+
+  bcrypt.hash(password, SALT_ROUNDS)
+    .then((hash) => Users.create({
+      name,
+      about,
+      avatar,
+      email,
+      password: hash,
+    }))
+    .then((user) => res.status(STATUS_SUCCESS_CREATED).send(createResponse(user)))
+    .catch(next);
 };
 
 module.exports.getUsers = (req, res) => {
@@ -48,20 +111,16 @@ module.exports.getUsers = (req, res) => {
         users[index] = createResponse(user);
       });
       res.status(STATUS_SUCCESS).send(users);
-    })
-    .catch((err) => processError(res, err));
+    });
 };
 
 module.exports.getUser = (req, res) => {
   Users.findById(req.params.userId)
     .then((user) => {
       if (!user) {
-        throw new UserNotFoundError('Пользователь не найден');
+        throwError(404, 'Пользователь не найден');
       }
       res.send(createResponse(user));
-    })
-    .catch((err) => {
-      processError(res, err);
     });
 };
 
@@ -79,11 +138,10 @@ module.exports.updateUser = (req, res) => {
   )
     .then((user) => {
       if (!user) {
-        throw new UserNotFoundError('Пользователь не найден');
+        throwError(404, 'Пользователь не найден');
       }
       res.send(createResponse(user));
-    })
-    .catch((err) => processError(res, err));
+    });
 };
 
 module.exports.updateUserAvatar = (req, res) => {
@@ -100,11 +158,10 @@ module.exports.updateUserAvatar = (req, res) => {
   )
     .then((user) => {
       if (!user) {
-        throw new UserNotFoundError('Пользователь не найден');
+        throwError(404, 'Пользователь не найден');
       }
       res.send(createResponse(user));
-    })
-    .catch((err) => processError(res, err));
+    });
 };
 
 module.exports.createResponseUser = createResponse;

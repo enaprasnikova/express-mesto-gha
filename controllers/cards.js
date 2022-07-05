@@ -3,13 +3,9 @@ const Cards = require('../models/card');
 const { createResponseUser } = require('./users');
 
 const {
-  STATUS_VALIDATION_ERROR,
-  STATUS_INTERNAL_ERROR,
   STATUS_SUCCESS,
   STATUS_SUCCESS_CREATED,
 } = require('../utils/statusCodes');
-
-const CardNotFoundError = require('../errors/cardNotFoundError');
 
 const createResponse = (card) => {
   card.likes.forEach((like, index) => {
@@ -28,16 +24,10 @@ const createResponse = (card) => {
   return formattedCard;
 };
 
-const processError = (res, err) => {
-  if (err.name === 'ValidationError' || err.name === 'CastError') {
-    return res.status(STATUS_VALIDATION_ERROR).send({ message: 'Ошибка валидации' });
-  }
-
-  if (err.name === 'CardNotFoundError') {
-    return res.status(err.statusCode).send({ message: err.message });
-  }
-
-  return res.status(STATUS_INTERNAL_ERROR).send({ message: 'Внутренняя ошибка сервера' });
+const throwError = (statusCode, message) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  throw error;
 };
 
 module.exports.getCards = (req, res) => {
@@ -48,8 +38,7 @@ module.exports.getCards = (req, res) => {
         cards[index] = createResponse(card);
       });
       res.status(STATUS_SUCCESS).send(cards);
-    })
-    .catch((err) => processError(res, err));
+    });
 };
 
 module.exports.createCard = (req, res) => {
@@ -62,23 +51,30 @@ module.exports.createCard = (req, res) => {
         .then((populatedCard) => {
           res.status(STATUS_SUCCESS_CREATED).send(createResponse(populatedCard));
         });
-    })
-    .catch((err) => processError(res, err));
+    });
 };
 
-module.exports.deleteCard = (req, res) => {
-  Cards.findByIdAndRemove(req.params.cardId)
+module.exports.deleteCard = (req, res, next) => {
+  Cards.findById(req.params.cardId)
     .populate(['owner', 'likes'])
     .then((card) => {
       if (!card) {
-        throw new CardNotFoundError('Карточка не найдена');
+        throwError(404, 'Карточка не найдена');
       }
+
+      if (req.user._id !== card.owner._id.toString()) {
+        throwError(403, 'Нет прав на удаление карточки');
+      }
+      return card;
+    })
+    .then((card) => {
+      card.remove();
       res.status(STATUS_SUCCESS).send(createResponse(card));
     })
-    .catch((err) => processError(res, err));
+    .catch(next);
 };
 
-module.exports.likeCard = (req, res) => {
+module.exports.likeCard = (req, res, next) => {
   Cards.findByIdAndUpdate(
     req.params.cardId,
     { $addToSet: { likes: req.user._id } }, // добавить _id в массив, если его там нет
@@ -87,15 +83,14 @@ module.exports.likeCard = (req, res) => {
     .populate(['owner', 'likes'])
     .then((card) => {
       if (!card) {
-        throw new CardNotFoundError('Карточка не найдена');
+        throwError(404, 'Карточка не найдена');
       }
-
       res.status(STATUS_SUCCESS).send(createResponse(card));
     })
-    .catch((err) => processError(res, err));
+    .catch(next);
 };
 
-module.exports.dislikeCard = (req, res) => {
+module.exports.dislikeCard = (req, res, next) => {
   Cards.findByIdAndUpdate(
     req.params.cardId,
     { $pull: { likes: req.user._id } }, // убрать _id из массива
@@ -104,10 +99,9 @@ module.exports.dislikeCard = (req, res) => {
     .populate(['owner', 'likes'])
     .then((card) => {
       if (!card) {
-        throw new CardNotFoundError('Карточка не найдена');
+        throwError(404, 'Карточка не найдена');
       }
-
       res.status(STATUS_SUCCESS).send(createResponse(card));
     })
-    .catch((err) => processError(res, err));
+    .catch(next);
 };
