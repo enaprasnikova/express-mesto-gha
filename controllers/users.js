@@ -19,6 +19,7 @@ const createResponse = (user) => {
     about: user.about,
     avatar: user.avatar,
     name: user.name,
+    email: user.email,
   };
   return formattedUser;
 };
