@@ -19,18 +19,18 @@ router.patch('/me', celebrate({
   }).unknown(true),
 }), updateUser);
 
+router.get('/me', getUserInfo);
+
 router.get('/:userId', celebrate({
   params: Joi.object().keys({
     userId: Joi.string().required().hex().length(24),
   }),
-}),getUser)
+}), getUser);
 
 router.patch('/me/avatar', celebrate({
   body: Joi.object().keys({
     avatar: Joi.string().required().uri(),
   }),
 }), updateUserAvatar);
-
-router.get('/me', getUserInfo);
 
 module.exports = router;

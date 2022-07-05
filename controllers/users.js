@@ -87,7 +87,7 @@ module.exports.getUser = (req, res) => {
         throwError(404, 'Пользователь не найден');
       }
       res.send(createResponse(user));
-    })
+    });
 };
 
 module.exports.createUser = (req, res, next) => {
