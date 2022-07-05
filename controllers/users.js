@@ -80,14 +80,15 @@ module.exports.getUserInfo = (req, res, next) => {
     .catch(next);
 };
 
-module.exports.getUser = (req, res) => {
+module.exports.getUser = (req, res, next) => {
   Users.findById(req.params.userId)
     .then((user) => {
       if (!user) {
         throwError(404, 'Пользователь не найден');
       }
       res.send(createResponse(user));
-    });
+    })
+    .catch(next);
 };
 
 module.exports.createUser = (req, res, next) => {
@@ -122,16 +123,6 @@ module.exports.getUsers = (req, res) => {
         users[index] = createResponse(user);
       });
       res.status(STATUS_SUCCESS).send(users);
-    });
-};
-
-module.exports.getUser = (req, res) => {
-  Users.findById(req.params.userId)
-    .then((user) => {
-      if (!user) {
-        throwError(404, 'Пользователь не найден');
-      }
-      res.send(createResponse(user));
     });
 };
 
