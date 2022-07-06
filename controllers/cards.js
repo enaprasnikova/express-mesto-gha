@@ -1,28 +1,11 @@
 const Cards = require('../models/card');
 
-const { createResponseUser } = require('./users');
-
 const {
   STATUS_SUCCESS,
   STATUS_SUCCESS_CREATED,
+  STATUS_NOT_FOUND,
+  STATUS_FORBIDDEN,
 } = require('../utils/statusCodes');
-
-const createResponse = (card) => {
-  card.likes.forEach((like, index) => {
-    card.likes[index] = createResponseUser(like);
-  });
-
-  const formattedCard = {
-    createdAt: card.createdAt,
-    likes: card.likes,
-    link: card.link,
-    name: card.name,
-    owner: createResponseUser(card.owner),
-    _id: card._id,
-  };
-
-  return formattedCard;
-};
 
 const throwError = (statusCode, message) => {
   const error = new Error(message);
@@ -31,12 +14,10 @@ const throwError = (statusCode, message) => {
 };
 
 module.exports.getCards = (req, res) => {
-  Cards.find({})
-    .populate(['owner', 'likes'])
+  Cards.find({}, '-__v')
+    .populate('owner', '-password -__v')
+    .populate('likes', '-password -__v')
     .then((cards) => {
-      cards.forEach((card, index) => {
-        cards[index] = createResponse(card);
-      });
       res.status(STATUS_SUCCESS).send(cards);
     });
 };
@@ -47,29 +28,37 @@ module.exports.createCard = (req, res) => {
 
   Cards.create({ name, link, owner })
     .then((card) => {
-      card.populate('owner')
+      card.populate('owner', '-password -__v')
         .then((populatedCard) => {
-          res.status(STATUS_SUCCESS_CREATED).send(createResponse(populatedCard));
+          res.status(STATUS_SUCCESS_CREATED).send({
+            _id: populatedCard._id,
+            name: populatedCard.name,
+            link: populatedCard.link,
+            owner: populatedCard.owner,
+            likes: populatedCard.likes,
+            createdAt: populatedCard.createdAt,
+          });
         });
     });
 };
 
 module.exports.deleteCard = (req, res, next) => {
-  Cards.findById(req.params.cardId)
-    .populate(['owner', 'likes'])
+  Cards.findById(req.params.cardId, '-__v')
+    .populate('owner', '-password -__v')
+    .populate('likes', '-password -__v')
     .then((card) => {
       if (!card) {
-        throwError(404, 'Карточка не найдена');
+        throwError(STATUS_NOT_FOUND, 'Карточка не найдена');
       }
 
       if (req.user._id !== card.owner._id.toString()) {
-        throwError(403, 'Нет прав на удаление карточки');
+        throwError(STATUS_FORBIDDEN, 'Нет прав на удаление карточки');
       }
       return card;
     })
     .then((card) => {
       card.remove();
-      res.status(STATUS_SUCCESS).send(createResponse(card));
+      res.status(STATUS_SUCCESS).send(card);
     })
     .catch(next);
 };
@@ -78,14 +67,18 @@ module.exports.likeCard = (req, res, next) => {
   Cards.findByIdAndUpdate(
     req.params.cardId,
     { $addToSet: { likes: req.user._id } }, // добавить _id в массив, если его там нет
-    { new: true },
+    {
+      new: true,
+      fields: '-__v',
+    },
   )
-    .populate(['owner', 'likes'])
+    .populate('owner', '-password -__v')
+    .populate('likes', '-password -__v')
     .then((card) => {
       if (!card) {
-        throwError(404, 'Карточка не найдена');
+        throwError(STATUS_NOT_FOUND, 'Карточка не найдена');
       }
-      res.status(STATUS_SUCCESS).send(createResponse(card));
+      res.status(STATUS_SUCCESS).send(card);
     })
     .catch(next);
 };
@@ -94,14 +87,18 @@ module.exports.dislikeCard = (req, res, next) => {
   Cards.findByIdAndUpdate(
     req.params.cardId,
     { $pull: { likes: req.user._id } }, // убрать _id из массива
-    { new: true },
+    {
+      new: true,
+      fields: '-__v',
+    },
   )
-    .populate(['owner', 'likes'])
+    .populate('owner', '-password -__v')
+    .populate('likes', '-password -__v')
     .then((card) => {
       if (!card) {
-        throwError(404, 'Карточка не найдена');
+        throwError(STATUS_NOT_FOUND, 'Карточка не найдена');
       }
-      res.status(STATUS_SUCCESS).send(createResponse(card));
+      res.status(STATUS_SUCCESS).send(card);
     })
     .catch(next);
 };

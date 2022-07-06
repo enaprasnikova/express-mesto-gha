@@ -11,18 +11,11 @@ const SECRET_KEY = 'very-secret';
 const {
   STATUS_SUCCESS,
   STATUS_SUCCESS_CREATED,
+  STATUS_VALIDATION_ERROR,
+  STATUS_NOT_FOUND,
+  STATUS_FORBIDDEN,
+  STATUS_UNAUTHORIZED_ERROR,
 } = require('../utils/statusCodes');
-
-const createResponse = (user) => {
-  const formattedUser = {
-    _id: user._id,
-    about: user.about,
-    avatar: user.avatar,
-    name: user.name,
-    email: user.email,
-  };
-  return formattedUser;
-};
 
 const throwError = (statusCode, message) => {
   const error = new Error(message);
@@ -34,13 +27,13 @@ module.exports.login = (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    throwError(400, 'Не передан емейл или пароль');
+    throwError(STATUS_VALIDATION_ERROR, 'Не передан емейл или пароль');
   }
 
   Users.findOne({ email }).select('+password')
     .then((foundUser) => {
       if (!foundUser) {
-        throwError(403, 'Неправильный емейл или пароль');
+        throwError(STATUS_FORBIDDEN, 'Неправильный емейл или пароль');
       }
 
       return Promise.all([
@@ -50,7 +43,7 @@ module.exports.login = (req, res) => {
     })
     .then(([user, isPasswordCorrect]) => {
       if (!isPasswordCorrect) {
-        throwError(403, 'Неправильный емейл или пароль');
+        throwError(STATUS_FORBIDDEN, 'Неправильный емейл или пароль');
       }
 
       return jwt.sign(
@@ -64,29 +57,29 @@ module.exports.login = (req, res) => {
     })
     .catch((err) => {
       res
-        .status(401)
+        .status(STATUS_UNAUTHORIZED_ERROR)
         .send({ message: err.message });
     });
 };
 
 module.exports.getUserInfo = (req, res, next) => {
-  Users.findById(req.user._id)
+  Users.findById(req.user._id, '-password -__v')
     .then((user) => {
       if (!user) {
-        throwError(404, 'Пользователь не найден');
+        throwError(STATUS_NOT_FOUND, 'Пользователь не найден');
       }
-      res.send(createResponse(user));
+      res.send(user);
     })
     .catch(next);
 };
 
 module.exports.getUser = (req, res, next) => {
-  Users.findById(req.params.userId)
+  Users.findById(req.params.userId, '-password -__v')
     .then((user) => {
       if (!user) {
-        throwError(404, 'Пользователь не найден');
+        throwError(STATUS_NOT_FOUND, 'Пользователь не найден');
       }
-      res.send(createResponse(user));
+      res.send(user);
     })
     .catch(next);
 };
@@ -101,7 +94,7 @@ module.exports.createUser = (req, res, next) => {
   } = req.body;
 
   if (!email || !password) {
-    throwError(400, 'Не передан емейл или пароль');
+    throwError(STATUS_VALIDATION_ERROR, 'Не передан емейл или пароль');
   }
 
   bcrypt.hash(password, SALT_ROUNDS)
@@ -112,16 +105,19 @@ module.exports.createUser = (req, res, next) => {
       email,
       password: hash,
     }))
-    .then((user) => res.status(STATUS_SUCCESS_CREATED).send(createResponse(user)))
+    .then((user) => res.status(STATUS_SUCCESS_CREATED).send({
+      _id: user._id,
+      name: user.name,
+      about: user.about,
+      avatar: user.avatar,
+      email: user.email,
+    }))
     .catch(next);
 };
 
 module.exports.getUsers = (req, res) => {
-  Users.find({})
+  Users.find({}, '-password -__v')
     .then((users) => {
-      users.forEach((user, index) => {
-        users[index] = createResponse(user);
-      });
       res.status(STATUS_SUCCESS).send(users);
     });
 };
@@ -136,13 +132,14 @@ module.exports.updateUser = (req, res) => {
     {
       new: true, // обработчик then получит на вход обновлённую запись
       runValidators: true, // данные будут валидированы перед изменением
+      fields: '-password -__v',
     },
   )
     .then((user) => {
       if (!user) {
-        throwError(404, 'Пользователь не найден');
+        throwError(STATUS_NOT_FOUND, 'Пользователь не найден');
       }
-      res.send(createResponse(user));
+      res.send(user);
     });
 };
 
@@ -156,14 +153,13 @@ module.exports.updateUserAvatar = (req, res) => {
     {
       new: true, // обработчик then получит на вход обновлённую запись
       runValidators: true, // данные будут валидированы перед изменением
+      fields: '-password -__v',
     },
   )
     .then((user) => {
       if (!user) {
-        throwError(404, 'Пользователь не найден');
+        throwError(STATUS_NOT_FOUND, 'Пользователь не найден');
       }
-      res.send(createResponse(user));
+      res.send(user);
     });
 };
-
-module.exports.createResponseUser = createResponse;

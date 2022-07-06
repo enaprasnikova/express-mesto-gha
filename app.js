@@ -20,6 +20,13 @@ const { STATUS_VALIDATION_ERROR } = require('./utils/statusCodes');
 
 const { urlPattern } = require('./utils/utils');
 
+const {
+  STATUS_INTERNAL_ERROR,
+  STATUS_NOT_FOUND,
+  STATUS_CONFLICT,
+  MONGO_DUPLICATE_ERROR_CODE,
+} = require('./utils/statusCodes');
+
 const { PORT = 3000 } = process.env;
 
 const app = express();
@@ -53,7 +60,7 @@ app.use('/users', auth, userRoutes);
 app.use('/cards', auth, cardRoutes);
 
 app.use((req, res) => {
-  res.status(404).send({ message: 'Указан неправильный путь' });
+  res.status(STATUS_NOT_FOUND).send({ message: 'Указан неправильный путь' });
 });
 
 app.use(errors());
@@ -67,11 +74,11 @@ app.use((err, req, res, next) => {
     return res.status(STATUS_VALIDATION_ERROR).send({ message: 'Ошибка валидации' });
   }
 
-  if (err.code === 11000) {
-    return res.status(409).send({ message: 'Емейл занят' });
+  if (err.code === MONGO_DUPLICATE_ERROR_CODE) {
+    return res.status(STATUS_CONFLICT).send({ message: 'Емейл занят' });
   }
 
-  return res.status(500).send({ message: 'На сервере произошла ошибка' });
+  return res.status(STATUS_INTERNAL_ERROR).send({ message: 'На сервере произошла ошибка' });
 });
 
 app.listen(PORT);
